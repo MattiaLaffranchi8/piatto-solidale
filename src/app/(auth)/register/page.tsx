@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import type { UserRole } from "@/types";
 
 const roles: { value: UserRole; label: string; description: string }[] = [
@@ -20,7 +19,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
-  const supabase = createClient();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,37 +29,25 @@ export default function RegisterPage() {
     setLoading(true);
     setError("");
 
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName, role },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, full_name: fullName, role }),
     });
 
-    if (signUpError) {
-      setError(signUpError.message);
+    const data = await res.json();
+
+    if (!res.ok) {
+      setError(typeof data.error === "string" ? data.error : "Errore durante la registrazione.");
       setLoading(false);
       return;
     }
 
-    // Se la conferma email è disabilitata, la sessione è già attiva
-    if (data.session) {
-      await supabase.from("profiles").upsert({
-        id: data.user!.id,
-        email,
-        full_name: fullName,
-        role,
-      });
-      if (role === "donor") router.push("/dashboard/donatore");
-      else if (role === "association") router.push("/dashboard/associazione");
-      else router.push("/dashboard/ristorante");
-      return;
-    }
-
-    // Altrimenti: email di conferma inviata, il callback creerà il profilo
-    router.push(`/login?registered=1&email=${encodeURIComponent(email)}`);
+    // Account creato e sessione avviata — redirect diretto alla dashboard
+    router.refresh();
+    if (data.role === "donor") router.push("/dashboard/donatore");
+    else if (data.role === "association") router.push("/dashboard/associazione");
+    else router.push("/dashboard/ristorante");
   }
 
   return (
