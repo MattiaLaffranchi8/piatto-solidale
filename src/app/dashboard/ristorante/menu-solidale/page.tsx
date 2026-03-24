@@ -26,23 +26,47 @@ export default function MenuSolidalePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetch("/api/restaurant").then(r => r.json()).then(data => {
-      // Recupera i menu del ristorante corrente
-      if (Array.isArray(data) && data.length > 0) {
-        setMenus(data[0]?.ethical_menus ?? []);
-      }
-    }).catch(() => {});
-  }, []);
+  async function loadMenus() {
+    const res = await fetch("/api/menu");
+    if (res.ok) setMenus(await res.json());
+  }
+
+  useEffect(() => { loadMenus(); }, []);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
-    // Menu CRUD tramite endpoint REST diretto — semplificato per MVP
+
+    const res = await fetch("/api/menu", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: form.name,
+        description: form.description,
+        full_price: Math.round(parseFloat(form.full_price) * 100),
+        ethical_price: Math.round(parseFloat(form.ethical_price) * 100),
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Errore nel salvataggio");
+    } else {
+      setForm({ name: "", description: "", full_price: "", ethical_price: "" });
+      await loadMenus();
+    }
     setLoading(false);
-    // TODO: implementare endpoint /api/menu quando necessario
-    alert("Funzionalità in sviluppo — usa il pannello Supabase per ora.");
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Eliminare questo menu?")) return;
+    await fetch("/api/menu", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    await loadMenus();
   }
 
   return (
@@ -60,9 +84,20 @@ export default function MenuSolidalePage() {
                   <div className="font-semibold text-[var(--foreground)]">{m.name}</div>
                   <div className="text-sm text-[var(--muted-foreground)]">{m.description}</div>
                 </div>
-                <div className="text-right">
-                  <div className="font-mono text-[var(--primary)] font-semibold">{formatCurrency(m.ethical_price)}</div>
-                  <div className="text-xs text-[var(--muted-foreground)] line-through">{formatCurrency(m.full_price)}</div>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <div className="font-mono text-[var(--primary)] font-semibold">{formatCurrency(m.ethical_price)}</div>
+                    <div className="text-xs text-[var(--muted-foreground)] line-through">{formatCurrency(m.full_price)}</div>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(m.id)}
+                    className="text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors"
+                    title="Elimina"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M3 5h14M8 5V3h4v2M6 5l1 12h6l1-12" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
                 </div>
               </div>
             ))}
@@ -75,20 +110,48 @@ export default function MenuSolidalePage() {
           <div className="bg-white rounded-[var(--radius-lg)] p-6 shadow-ps-sm">
             <h2 className="font-heading text-xl mb-4">Aggiungi menu</h2>
             <form onSubmit={handleCreate} className="space-y-4">
-              <input placeholder="Nome menu (es. Menu Solidale Pranzo)" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm focus:border-[var(--primary)] outline-none" required />
-              <input placeholder="Descrizione (es. Primo + Secondo + Acqua)" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm focus:border-[var(--primary)] outline-none" required />
+              <input
+                placeholder="Nome menu (es. Menu Solidale Pranzo)"
+                value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                className="w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm focus:border-[var(--primary)] outline-none"
+                required
+              />
+              <input
+                placeholder="Descrizione (es. Primo + Secondo + Acqua)"
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                className="w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm focus:border-[var(--primary)] outline-none"
+                required
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-[var(--muted-foreground)] mb-1 block">Prezzo listino (€)</label>
-                  <input type="number" min="1" step="0.01" placeholder="15.00" value={form.full_price} onChange={e => setForm(f => ({ ...f, full_price: e.target.value }))} className="w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm focus:border-[var(--primary)] outline-none" required />
+                  <input
+                    type="number" min="1" step="0.01" placeholder="15.00"
+                    value={form.full_price}
+                    onChange={e => setForm(f => ({ ...f, full_price: e.target.value }))}
+                    className="w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm focus:border-[var(--primary)] outline-none"
+                    required
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-[var(--muted-foreground)] mb-1 block">Prezzo etico (€)</label>
-                  <input type="number" min="1" step="0.01" placeholder="12.00" value={form.ethical_price} onChange={e => setForm(f => ({ ...f, ethical_price: e.target.value }))} className="w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm focus:border-[var(--primary)] outline-none" required />
+                  <input
+                    type="number" min="1" step="0.01" placeholder="12.00"
+                    value={form.ethical_price}
+                    onChange={e => setForm(f => ({ ...f, ethical_price: e.target.value }))}
+                    className="w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm focus:border-[var(--primary)] outline-none"
+                    required
+                  />
                 </div>
               </div>
               {error && <p className="text-[var(--destructive)] text-sm">{error}</p>}
-              <button type="submit" disabled={loading} className="w-full bg-[var(--primary)] text-white font-semibold py-2.5 rounded-[var(--radius-md)] btn-hover disabled:opacity-50">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-[var(--primary)] text-white font-semibold py-2.5 rounded-[var(--radius-md)] btn-hover disabled:opacity-50"
+              >
                 {loading ? "Salvataggio…" : "Aggiungi menu"}
               </button>
             </form>
