@@ -25,15 +25,8 @@ export async function POST(request: NextRequest) {
   let donorProfileId: string | null = null;
 
   if (user) {
-    const db = createAdminClient();
-    const { data: profile } = await db
-      .from("profiles")
-      .select("id, role")
-      .eq("id", user.id)
-      .single();
-    if (profile?.role === "donor") {
-      donorProfileId = profile.id;
-    }
+    // Qualsiasi utente loggato può associare la donazione al proprio profilo
+    donorProfileId = user.id;
   }
 
   const body = await request.json();

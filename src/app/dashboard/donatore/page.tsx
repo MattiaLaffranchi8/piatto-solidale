@@ -22,7 +22,7 @@ export default async function DonatoreDashboard() {
     db.from("donations")
       .select("amount, status, created_at")
       .eq("donor_profile_id", user.id)
-      .eq("status", "completed")
+      .in("status", ["completed", "pending"])
       .order("created_at", { ascending: false })
       .limit(5),
     db.from("profiles").select("full_name").eq("id", user.id).single(),
