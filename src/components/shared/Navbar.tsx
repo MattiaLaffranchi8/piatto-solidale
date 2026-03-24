@@ -2,16 +2,37 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
+  const supabase = createClient();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/");
+    router.refresh();
+  }
 
   return (
     <nav
@@ -48,18 +69,34 @@ export function Navbar() {
 
         {/* CTA desktop */}
         <div className="hidden md:flex items-center gap-3">
-          <Link
-            href="/login"
-            className="px-4 py-2 text-sm font-medium border border-[var(--border)] rounded-[var(--radius-md)] hover:border-[var(--primary)] transition-colors"
-          >
-            Accedi
-          </Link>
-          <Link
-            href="/dona"
-            className="px-4 py-2 text-sm font-medium bg-[var(--primary)] text-white rounded-[var(--radius-md)] btn-hover"
-          >
-            Dona
-          </Link>
+          {user ? (
+            <>
+              <span className="text-sm text-[var(--muted-foreground)] truncate max-w-[160px]">
+                {user.email}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 text-sm font-medium border border-[var(--border)] rounded-[var(--radius-md)] hover:border-red-400 hover:text-red-500 transition-colors"
+              >
+                Esci
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="px-4 py-2 text-sm font-medium border border-[var(--border)] rounded-[var(--radius-md)] hover:border-[var(--primary)] transition-colors"
+              >
+                Accedi
+              </Link>
+              <Link
+                href="/dona"
+                className="px-4 py-2 text-sm font-medium bg-[var(--primary)] text-white rounded-[var(--radius-md)] btn-hover"
+              >
+                Dona
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Hamburger mobile */}
@@ -81,14 +118,25 @@ export function Navbar() {
           <Link href="/ristoranti" onClick={() => setMenuOpen(false)} className="text-sm font-medium">Ristoranti</Link>
           <Link href="/dona" onClick={() => setMenuOpen(false)} className="text-sm font-medium">Dona ora</Link>
           <hr className="border-[var(--border)]" />
-          <Link href="/login" onClick={() => setMenuOpen(false)} className="text-sm font-medium">Accedi</Link>
-          <Link
-            href="/dona"
-            onClick={() => setMenuOpen(false)}
-            className="px-4 py-2 text-sm font-medium bg-[var(--primary)] text-white rounded-[var(--radius-md)] text-center"
-          >
-            Dona ora
-          </Link>
+          {user ? (
+            <>
+              <span className="text-sm text-[var(--muted-foreground)]">{user.email}</span>
+              <button onClick={handleLogout} className="text-sm font-medium text-red-500 text-left">
+                Esci
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" onClick={() => setMenuOpen(false)} className="text-sm font-medium">Accedi</Link>
+              <Link
+                href="/dona"
+                onClick={() => setMenuOpen(false)}
+                className="px-4 py-2 text-sm font-medium bg-[var(--primary)] text-white rounded-[var(--radius-md)] text-center"
+              >
+                Dona ora
+              </Link>
+            </>
+          )}
         </div>
       )}
     </nav>

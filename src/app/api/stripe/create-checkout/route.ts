@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { stripe } from "@/lib/stripe";
-import { withAuth } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DonationMetadata } from "@/types/stripe";
 
@@ -19,8 +19,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Troppe richieste" }, { status: 429 });
   }
 
-  const auth = await withAuth(request, ["donor"]);
-  if (auth instanceof NextResponse) return auth;
+  // Auth opzionale: se loggato come donor associa il profilo, altrimenti donazione anonima
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  let donorProfileId: string | null = null;
+
+  if (user) {
+    const db = createAdminClient();
+    const { data: profile } = await db
+      .from("profiles")
+      .select("id, role")
+      .eq("id", user.id)
+      .single();
+    if (profile?.role === "donor") {
+      donorProfileId = profile.id;
+    }
+  }
 
   const body = await request.json();
   const parsed = schema.safeParse(body);
@@ -32,14 +46,20 @@ export async function POST(request: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   const metadata: DonationMetadata = {
-    donor_profile_id: auth.profile.id,
-    is_anonymous: is_anonymous ? "true" : "false",
+    donor_profile_id: donorProfileId ?? "anonymous",
+    is_anonymous: (is_anonymous || !donorProfileId) ? "true" : "false",
     is_recurring: is_recurring ? "true" : "false",
     ...(donor_message ? { donor_message } : {}),
   };
 
   if (is_recurring) {
-    // Crea prodotto + prezzo ricorrente
+    if (!donorProfileId) {
+      return NextResponse.json(
+        { error: "Accedi per attivare le donazioni ricorrenti." },
+        { status: 401 }
+      );
+    }
+
     const price = await stripe.prices.create({
       unit_amount: amount,
       currency: "eur",
@@ -52,7 +72,7 @@ export async function POST(request: NextRequest) {
       line_items: [{ price: price.id, quantity: 1 }],
       metadata: metadata as unknown as Record<string, string>,
       success_url: `${appUrl}/dashboard/donatore?donated=true`,
-      cancel_url: `${appUrl}/dashboard/donatore/dona`,
+      cancel_url: `${appUrl}/dona`,
     });
     return NextResponse.json({ url: session.url });
   }
@@ -62,14 +82,14 @@ export async function POST(request: NextRequest) {
   const { data: donation } = await db
     .from("donations")
     .insert({
-      donor_profile_id: auth.profile.id,
+      donor_profile_id: donorProfileId,
       stripe_payment_intent: "pending",
       amount,
       fee_amount: 0,
       net_amount: amount,
       status: "pending",
-      is_anonymous,
-      is_recurring,
+      is_anonymous: is_anonymous || !donorProfileId,
+      is_recurring: false,
       donor_message: donor_message ?? null,
     })
     .select()
@@ -78,10 +98,9 @@ export async function POST(request: NextRequest) {
   const paymentIntent = await stripe.paymentIntents.create({
     amount,
     currency: "eur",
-    metadata: { ...metadata, donation_id: donation?.id ?? "" },
+    metadata: { ...metadata, donation_id: donation?.id ?? "" } as Record<string, string>,
   });
 
-  // Aggiorna il record con il vero payment intent ID
   if (donation) {
     await db
       .from("donations")

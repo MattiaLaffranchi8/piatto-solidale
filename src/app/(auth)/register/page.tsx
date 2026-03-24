@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { UserRole } from "@/types";
 
@@ -13,42 +14,54 @@ const roles: { value: UserRole; label: string; description: string }[] = [
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<UserRole>("donor");
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
-
+  const router = useRouter();
   const supabase = createClient();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (password.length < 8) {
+      setError("La password deve essere di almeno 8 caratteri.");
+      return;
+    }
     setLoading(true);
     setError("");
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email,
+      password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: { full_name: fullName, role },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
-    if (error) setError(error.message);
-    else setSent(true);
-    setLoading(false);
-  }
+    if (signUpError) {
+      setError(signUpError.message);
+      setLoading(false);
+      return;
+    }
 
-  if (sent) {
-    return (
-      <div className="bg-white rounded-[var(--radius-lg)] p-8 shadow-ps-md text-center">
-        <div className="text-4xl mb-4">📧</div>
-        <h2 className="font-heading text-2xl mb-2">Controlla la tua email</h2>
-        <p className="text-sm text-[var(--muted-foreground)]">
-          Abbiamo inviato un link di conferma a <strong>{email}</strong>.
-        </p>
-      </div>
-    );
+    // Se la conferma email è disabilitata, la sessione è già attiva
+    if (data.session) {
+      await supabase.from("profiles").upsert({
+        id: data.user!.id,
+        email,
+        full_name: fullName,
+        role,
+      });
+      if (role === "donor") router.push("/dashboard/donatore");
+      else if (role === "association") router.push("/dashboard/associazione");
+      else router.push("/dashboard/ristorante");
+      return;
+    }
+
+    // Altrimenti: email di conferma inviata, il callback creerà il profilo
+    router.push(`/login?registered=1&email=${encodeURIComponent(email)}`);
   }
 
   return (
@@ -70,6 +83,14 @@ export default function RegisterPage() {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm focus:border-[var(--primary)] outline-none"
+        />
+        <input
+          type="password"
+          required
+          placeholder="Password (min. 8 caratteri)"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           className="w-full border border-[var(--border)] rounded-[var(--radius-md)] px-3 py-2 text-sm focus:border-[var(--primary)] outline-none"
         />
 
@@ -101,7 +122,7 @@ export default function RegisterPage() {
           disabled={loading}
           className="w-full bg-[var(--primary)] text-white font-semibold py-2.5 rounded-[var(--radius-md)] btn-hover disabled:opacity-50"
         >
-          {loading ? "Invio…" : "Crea account"}
+          {loading ? "Registrazione…" : "Crea account"}
         </button>
       </form>
 
