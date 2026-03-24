@@ -20,30 +20,36 @@ export async function POST(request: NextRequest) {
 
   // Riusa account esistente se già creato
   let accountId = restaurant.stripe_account_id;
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: "express",
-      country: "IT",
-      email: auth.profile.email,
-      capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-      business_type: "company",
-      metadata: { restaurant_id: restaurant.id },
+  try {
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: "express",
+        country: "IT",
+        email: auth.profile.email,
+        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+        business_type: "company",
+        metadata: { restaurant_id: restaurant.id },
+      });
+      accountId = account.id;
+
+      await db
+        .from("restaurants")
+        .update({ stripe_account_id: accountId })
+        .eq("id", restaurant.id);
+    }
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${appUrl}/dashboard/ristorante/payout?refresh=true`,
+      return_url: `${appUrl}/dashboard/ristorante/payout?onboarded=true`,
+      type: "account_onboarding",
     });
-    accountId = account.id;
 
-    await db
-      .from("restaurants")
-      .update({ stripe_account_id: accountId })
-      .eq("id", restaurant.id);
+    return NextResponse.json({ url: accountLink.url });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Errore Stripe sconosciuto";
+    console.error("Stripe connected account error:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const accountLink = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: `${appUrl}/dashboard/ristorante/payout?refresh=true`,
-    return_url: `${appUrl}/dashboard/ristorante/payout?onboarded=true`,
-    type: "account_onboarding",
-  });
-
-  return NextResponse.json({ url: accountLink.url });
 }

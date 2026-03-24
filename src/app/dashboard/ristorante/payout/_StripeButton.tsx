@@ -11,7 +11,15 @@ export function StripeOnboardingButton() {
     setError("");
     try {
       const res = await fetch("/api/stripe/create-connected-account", { method: "POST" });
-      const data = await res.json();
+      const text = await res.text();
+      let data: { url?: string; error?: string };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setError(`Risposta non valida: ${text.slice(0, 200)}`);
+        setLoading(false);
+        return;
+      }
       if (data.url) {
         window.location.href = data.url;
       } else {
