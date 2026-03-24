@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
+import { StripeOnboardingButton } from "./payout/_StripeButton";
 
 const navItems = [
   { href: "/dashboard/ristorante", label: "Panoramica", icon: <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><rect x="2" y="2" width="7" height="7" rx="1"/><rect x="11" y="2" width="7" height="7" rx="1"/><rect x="2" y="11" width="7" height="7" rx="1"/><rect x="11" y="11" width="7" height="7" rx="1"/></svg> },
@@ -45,7 +46,7 @@ export default async function RistoranteDashboard() {
           {!restaurant.stripe_onboarded && (
             <div className="mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded-[var(--radius-md)] text-sm">
               <strong>Completa l&apos;onboarding Stripe</strong> per ricevere i pagamenti.{" "}
-              <a href="/api/stripe/create-connected-account" className="text-[var(--primary)] underline">Configura ora →</a>
+              <StripeOnboardingButton />
             </div>
           )}
 
