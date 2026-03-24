@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { formatCurrency } from "@/lib/utils";
+import { StripeOnboardingButton } from "./_StripeButton";
 
 const navItems = [
   { href: "/dashboard/ristorante", label: "Panoramica", icon: <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><rect x="2" y="2" width="7" height="7" rx="1"/><rect x="11" y="2" width="7" height="7" rx="1"/><rect x="2" y="11" width="7" height="7" rx="1"/><rect x="11" y="11" width="7" height="7" rx="1"/></svg> },
@@ -36,12 +37,7 @@ export default async function PayoutPage() {
           {!restaurant.stripe_onboarded && (
             <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-[var(--radius-md)] text-sm">
               <strong>Onboarding Stripe non completato.</strong>{" "}
-              <button
-                onClick={() => fetch("/api/stripe/create-connected-account", { method: "POST" }).then(r => r.json()).then(d => { if (d.url) window.location.href = d.url; })}
-                className="text-[var(--primary)] underline"
-              >
-                Completa ora →
-              </button>
+              <StripeOnboardingButton />
             </div>
           )}
           <p className="text-[var(--muted-foreground)] mb-8">Storico trasferimenti Stripe per i pasti serviti.</p>
