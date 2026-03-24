@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    const fields = parsed.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");
+    const fields = parsed.error.issues.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");
     return NextResponse.json({ error: `Dati non validi — ${fields}` }, { status: 400 });
   }
 
