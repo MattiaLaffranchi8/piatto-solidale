@@ -38,8 +38,9 @@ export async function POST(request: NextRequest) {
         .eq("id", restaurant.id);
     }
 
-    const origin = new URL(request.url).origin;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? origin;
+    const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "localhost:3000";
+    const proto = request.headers.get("x-forwarded-proto") ?? "http";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? `${proto}://${host}`;
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: `${appUrl}/dashboard/ristorante/payout?refresh=true`,
