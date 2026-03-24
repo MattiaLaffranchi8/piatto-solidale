@@ -1,15 +1,39 @@
 "use client";
 
+import { useState } from "react";
+
 export function StripeOnboardingButton() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
   async function handleClick() {
-    const res = await fetch("/api/stripe/create-connected-account", { method: "POST" });
-    const data = await res.json();
-    if (data.url) window.location.href = data.url;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/stripe/create-connected-account", { method: "POST" });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setError(data.error ?? "Errore sconosciuto");
+        setLoading(false);
+      }
+    } catch {
+      setError("Errore di rete");
+      setLoading(false);
+    }
   }
 
   return (
-    <button onClick={handleClick} className="text-[var(--primary)] underline">
-      Completa ora →
-    </button>
+    <span>
+      <button
+        onClick={handleClick}
+        disabled={loading}
+        className="text-[var(--primary)] underline disabled:opacity-50"
+      >
+        {loading ? "Caricamento…" : "Completa ora →"}
+      </button>
+      {error && <span className="ml-2 text-[var(--destructive)] text-xs">{error}</span>}
+    </span>
   );
 }
