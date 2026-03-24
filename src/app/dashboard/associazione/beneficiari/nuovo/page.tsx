@@ -23,6 +23,8 @@ export default function NuovoBeneficiarioPage() {
     anonymous_code: string;
     id: string;
     expires_at: string;
+    qr_image: string;
+    voucher_id: string;
   } | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -30,7 +32,8 @@ export default function NuovoBeneficiarioPage() {
     setLoading(true);
     setError("");
 
-    const res = await fetch("/api/beneficiary", {
+    // 1. Crea beneficiario
+    const resB = await fetch("/api/beneficiary", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -40,12 +43,37 @@ export default function NuovoBeneficiarioPage() {
         notes: notes || undefined,
       }),
     });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? "Errore");
-    } else {
-      setCreated(data);
+    const beneficiary = await resB.json();
+    if (!resB.ok) {
+      setError(beneficiary.error ?? "Errore creazione beneficiario");
+      setLoading(false);
+      return;
     }
+
+    // 2. Genera voucher QR con il budget completo
+    const resV = await fetch("/api/voucher/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        beneficiary_id: beneficiary.id,
+        amount: parseInt(budget),
+        expires_in_days: parseInt(expiresDays),
+      }),
+    });
+    const voucher = await resV.json();
+    if (!resV.ok) {
+      setError(voucher.error ?? "Errore generazione QR");
+      setLoading(false);
+      return;
+    }
+
+    setCreated({
+      anonymous_code: beneficiary.anonymous_code,
+      id: beneficiary.id,
+      expires_at: voucher.expires_at,
+      qr_image: voucher.qr_image,
+      voucher_id: voucher.voucher_id,
+    });
     setLoading(false);
   }
 
@@ -60,8 +88,8 @@ export default function NuovoBeneficiarioPage() {
               Conserva il QR code e consegnalo al beneficiario. Non verrà mostrato di nuovo.
             </p>
             <QRGenerator
-              qrImageBase64=""
-              voucherId={created.id}
+              qrImageBase64={created.qr_image}
+              voucherId={created.voucher_id}
               amount={parseInt(budget)}
               expiresAt={created.expires_at}
               beneficiaryCode={created.anonymous_code}
