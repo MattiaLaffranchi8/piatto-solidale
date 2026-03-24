@@ -21,7 +21,7 @@ export default async function RistoranteDashboard() {
   const db = createAdminClient();
   const { data: restaurant } = await db.from("restaurants").select("id, name, total_meals_served, stripe_onboarded").eq("profile_id", user.id).single();
 
-  if (!restaurant) redirect("/login");
+  if (!restaurant) redirect("/dashboard/ristorante/setup");
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
