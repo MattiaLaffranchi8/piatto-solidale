@@ -5,10 +5,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({
   name: z.string().min(2).max(200),
-  fiscal_code: z.string().min(11).max(16),
+  fiscal_code: z.string().min(2).max(20),
   address: z.string().min(3),
   city: z.string().min(2),
-  province: z.string().length(2),
+  province: z.string().min(1).max(5),
   region: z.string().min(2),
   contact_email: z.string().email(),
   contact_phone: z.string().optional(),
@@ -23,7 +23,8 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    const fields = parsed.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ");
+    return NextResponse.json({ error: `Dati non validi — ${fields}` }, { status: 400 });
   }
 
   const db = createAdminClient();
