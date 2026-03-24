@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 
   // Donazione singola
   const db = createAdminClient();
-  const { data: donation } = await db
+  const { data: donation, error: insertError } = await db
     .from("donations")
     .insert({
       donor_profile_id: donorProfileId,
@@ -88,18 +88,24 @@ export async function POST(request: NextRequest) {
     .select()
     .single();
 
+  if (insertError || !donation) {
+    console.error("Donation insert error:", insertError);
+    return NextResponse.json(
+      { error: "Errore nel salvare la donazione. Controlla le variabili d'ambiente Supabase." },
+      { status: 500 }
+    );
+  }
+
   const paymentIntent = await stripe.paymentIntents.create({
     amount,
     currency: "eur",
-    metadata: { ...metadata, donation_id: donation?.id ?? "" } as Record<string, string>,
+    metadata: { ...metadata, donation_id: donation.id } as Record<string, string>,
   });
 
-  if (donation) {
-    await db
-      .from("donations")
-      .update({ stripe_payment_intent: paymentIntent.id })
-      .eq("id", donation.id);
-  }
+  await db
+    .from("donations")
+    .update({ stripe_payment_intent: paymentIntent.id })
+    .eq("id", donation.id);
 
   return NextResponse.json({ clientSecret: paymentIntent.client_secret });
 }
