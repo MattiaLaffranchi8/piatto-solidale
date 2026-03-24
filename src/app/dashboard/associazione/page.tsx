@@ -19,7 +19,7 @@ export default async function AssociazioneDashboard() {
   const db = createAdminClient();
   const { data: association } = await db.from("associations").select("id, name").eq("profile_id", user.id).single();
 
-  if (!association) redirect("/login");
+  if (!association) redirect("/dashboard/associazione/setup");
 
   const [benResult, voucherResult] = await Promise.all([
     db.from("beneficiaries").select("id, status", { count: "exact" }).eq("association_id", association.id).eq("status", "active"),
